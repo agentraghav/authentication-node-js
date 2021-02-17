@@ -11,8 +11,10 @@ const session = require('express-session');
 const initializePassport = require('./passport-config');
 const users = [];
 
-initializePassport(passport, (email) =>
-  users.find((user) => user.email === email)
+initializePassport(
+  passport,
+  (email) => users.find((user) => user.email === email),
+  (id) => users.find((user) => user.id === id)
 );
 
 app.set('view-engine', 'ejs');
@@ -29,16 +31,17 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-app.get('/', (req, res) => {
-  res.render('index.ejs', { name: 'kyle' });
+app.get('/', checkAuthenticate, (req, res) => {
+  res.render('index.ejs', { name: req.user.name });
 });
 
-app.get('/login', (req, res) => {
+app.get('/login', checkNotAuthenticated, (req, res) => {
   res.render('login.ejs');
 });
 
 app.post(
   '/login',
+  checkNotAuthenticated,
   passport.authenticate('local', {
     successRedirect: '/',
     failureRedirect: '/login',
@@ -46,11 +49,11 @@ app.post(
   })
 );
 
-app.get('/register', (req, res) => {
+app.get('/register', checkNotAuthenticated, (req, res) => {
   res.render('register.ejs');
 });
 
-app.post('/register', async (req, res) => {
+app.post('/register', checkNotAuthenticated, async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(req.body.password, 10);
     users.push({
@@ -64,5 +67,20 @@ app.post('/register', async (req, res) => {
     res.redirect('/register');
   }
 });
+
+function checkAuthenticate(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect('/login');
+}
+
+function checkNotAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return res.redirect('/');
+  }
+
+  next();
+}
 
 app.listen(3000);
